@@ -1,0 +1,15 @@
+LOGIN OK � token: eyJhbGciOiJIUzI1NiIs...
+  OK   Auth /me (200)
+  OK   Dashboard stats (200)
+  OK   Dashboard bidders (200)
+  OK   Tenders list (200)
+  OK   Bidders list (200)
+  OK   Alerts list (200)
+  OK   Alerts unread (200)
+  OK   Reviews list (200)
+  FAIL Doc duplicates (HTTP 500) � {"detail":"Internal server error"}
+  OK   Audit logs (200)
+  OK   Users list (200)
+  OK   Reports list (200)
+
+Results: 11 OK, 1 FAILED
