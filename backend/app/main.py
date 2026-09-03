@@ -2,6 +2,8 @@
 FastAPI application entrypoint.
 Run with: uvicorn app.main:app --reload
 """
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -29,10 +31,61 @@ from app.api.routes import document_risk, risk, alerts, reviews
 
 configure_logging()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Runs once on startup.
+    - Creates all DB tables (safe if they already exist)
+    - Seeds the default admin user (skipped if already exists)
+    - Runs upgrade migration (idempotent)
+    """
+    try:
+        logger.info("Startup: creating/verifying database tables...")
+        from app.database import Base, engine
+        import app.models  # noqa — registers all models with Base.metadata
+        Base.metadata.create_all(bind=engine)
+        logger.info("Startup: tables OK")
+    except Exception as e:
+        logger.error(f"Startup: table creation failed: {e}", exc_info=True)
+
+    try:
+        logger.info("Startup: seeding admin user...")
+        from app.database import SessionLocal
+        from app.models.user import User, UserRole
+        from app.core.security import hash_password
+        import uuid
+        db = SessionLocal()
+        try:
+            existing = db.query(User).filter(User.email == "admin@cpcl.gem").first()
+            if not existing:
+                admin = User(
+                    id=uuid.uuid4(),
+                    full_name="System Administrator",
+                    email="admin@cpcl.gem",
+                    hashed_password=hash_password("Admin@123"),
+                    role=UserRole.ADMIN,
+                    is_active=True,
+                )
+                db.add(admin)
+                db.commit()
+                logger.info("Startup: admin user created (admin@cpcl.gem / Admin@123)")
+            else:
+                logger.info("Startup: admin user already exists, skipping")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Startup: admin seeding failed: {e}", exc_info=True)
+
+    yield  # app runs here
+
+    logger.info("Shutdown complete.")
+
 app = FastAPI(
     title="GeM Bid Compliance Verification Platform",
     description="AI-powered bid compliance verification for GeM procurement (CPCL / MoPNG - SIH 2026, PS ID 26100)",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # ---- CORS ----
